@@ -19,6 +19,7 @@ library(tidyverse)
 library(lubridate)
 library(tidytext)
 library(scales)
+library(viridis)
 
 sessionInfo()
 
@@ -28,7 +29,7 @@ stack_overflow_color <- "#f48024"
 
 ```{r}
 theme_set(theme_minimal(base_size=9, base_family="Source Sans Pro") +
-            theme(plot.title = element_text(size=8, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0, unit='cm')),
+            theme(plot.title = element_text(size=8, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.1, unit='cm')),
                   axis.title.x = element_text(size=8),
                   axis.title.y = element_text(size=8),
                   plot.subtitle = element_text(family="Source Sans Pro Semibold", color="#969696", size=6),
@@ -77,6 +78,94 @@ plot <- ggplot(df, aes(x=week_posted, y=..count..)) +
 ggsave('weekly_count.png', plot, width=4, height=3)
 ```
 
+# Facet by Tags
+
+```{r}
+df_top_tags <- df %>%
+                select(creation_date, tags) %>%
+                unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
+                group_by(tag) %>%
+                summarize(count=n()) %>%
+                arrange(desc(count)) %>%
+                head(1000)
+
+df_top_tags %>% head()               
+```
+
+```{r}
+df_top_tags_month <- df %>%
+                select(month_posted, tags) %>%
+                unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
+                filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag))) %>%
+                group_by(month_posted, tag) %>%
+                summarize(count=n()) %>%
+                arrange(month_posted) %>%
+                filter(month_posted >= date('2017-01-01'))
+
+df_top_tags_month %>% head()               
+```
+
+## Monthly by Tags
+
+```{r}
+plot <- ggplot(df_top_tags_month, aes(x=month_posted, y=count, fill=tag)) +
+          geom_bar(alpha=0.75, stat="identity") +
+          geom_smooth(se=F, method="lm", color="black", size=0.25) +
+          scale_x_datetime(date_breaks='3 months', date_labels='%b') +
+          scale_y_continuous(labels=comma) +
+          facet_wrap(~ tag, nrow=10, ncol=4, scales="free_y") +
+          labs(title='New Stack Overflow Questions for the Top 40 Tags',
+                subtitle='From January 2017 to November 2017',
+               x='Month Question Was Posted',
+               y='# of Questions Posted With Tag') +
+          theme(legend.position = 'none',
+                plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')))
+
+ggsave('monthly_count_tag.png', plot, width=6, height=8)
+```
+
+## Day/Hour of Week tags were posted
+
+Related: https://stackoverflow.blog/2017/04/19/programming-languages-used-late-night/
+
+```{r}
+df_top_tags_hr_doy <- df %>%
+                select(hour_posted, weekday_posted, tags) %>%
+                unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
+                filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag))) %>%
+                group_by(hour_posted, weekday_posted, tag) %>%
+                summarize(count=n()) %>%
+                ungroup() %>%
+                group_by(tag) %>%
+                mutate(proportion=count/sum(count))
+
+df_top_tags_hr_doy %>% head() 
+```
+
+```{r}
+plot <- ggplot(df_top_tags_hr_doy, aes(x=hour_posted, y=fct_rev(weekday_posted), fill=proportion)) +
+          geom_raster(stat="identity", interpolate=F) +
+          scale_x_discrete() +
+          scale_y_discrete() +
+          scale_fill_viridis(option="inferno", labels=percent) +
+          facet_wrap(~ tag, nrow=10, ncol=4) +
+          labs(title='New Stack Overflow Questions for the Top 40 Tags',
+                subtitle='From January 2017 to November 2017',
+               x='Hour Question Was Posted (12 AM - 11 PM Eastern Time)',
+               y='Day of Week Question Was Posted',
+               fill='Proportion of All Questions\nPosted w/ Tag',
+               caption = "Max Woolf — minimaxir.com") +
+          theme(legend.position = 'top',
+                plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
+                axis.text.y = element_text(size = 5),
+                legend.text = element_text(size = 6),
+                legend.title = element_text(size = 6),
+                  legend.key.width = unit(1, unit='cm'),
+                legend.key.height = unit(0.25, unit='cm'),
+                legend.margin = margin(c(0, 0, -0.5, 0), unit='cm'))
+
+ggsave('monthly_count_hr_doy.png', plot, width=6, height=8)
+```
 
 # LICENSE
 
