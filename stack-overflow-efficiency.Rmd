@@ -60,6 +60,16 @@ df <- df %>% mutate(
 )
 ```
 
+Add a few bespoke features:
+
+```{r}
+df <- df %>% mutate(
+        f_answer_in = ifelse(!is.na(time_to_f) & time_to_f < 60*60*8, 1, 0),
+        a_answer_in = ifelse(!is.na(time_to_a) & time_to_a < 60*60*8, 1, 0)
+)
+```
+
+
 # Overview
 
 For all questions asked:
@@ -149,7 +159,7 @@ plot <- ggplot(df_top_tags_hr_doy, aes(x=hour_posted, y=fct_rev(weekday_posted),
           scale_y_discrete() +
           scale_fill_viridis(option="inferno", labels=percent) +
           facet_wrap(~ tag, nrow=10, ncol=4) +
-          labs(title='New Stack Overflow Questions for the Top 40 Tags',
+          labs(title='New Stack Overflow Questions for the Top 40 Tags, by Time Posted',
                 subtitle='From January 2017 to November 2017',
                x='Hour Question Was Posted (12 AM - 11 PM Eastern Time)',
                y='Day of Week Question Was Posted',
@@ -167,6 +177,71 @@ plot <- ggplot(df_top_tags_hr_doy, aes(x=hour_posted, y=fct_rev(weekday_posted),
 ggsave('monthly_count_hr_doy.png', plot, width=6, height=8)
 ```
 
+## Day/Week To Receive Answer
+
+
+```{r}
+df_top_tags_hr_doy_answer <- df %>%
+                select(hour_posted, weekday_posted, tags, f_answer_in, a_answer_in) %>%
+                unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
+                filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag))) %>%
+                group_by(hour_posted, weekday_posted, tag) %>%
+                summarize(count=n(), perc_f_answer = sum(f_answer_in)/count, perc_a_answer = sum(a_answer_in)/count) %>%
+                ungroup()
+
+df_top_tags_hr_doy_answer %>% head() 
+```
+
+```{r}
+plot <- ggplot(df_top_tags_hr_doy_answer, aes(x=hour_posted, y=fct_rev(weekday_posted), fill=perc_f_answer)) +
+          geom_raster(stat="identity", interpolate=F) +
+          scale_x_discrete() +
+          scale_y_discrete() +
+          scale_fill_distiller(palette="PRGn", labels=percent, limits=c(0,1)) +
+          facet_wrap(~ tag, nrow=10, ncol=4) +
+          labs(title='New Stack Overflow Questions for the Top 40 Tags, by Time Posted',
+                subtitle='From January 2017 to November 2017',
+               x='Hour Question Was Posted (12 AM - 11 PM Eastern Time)',
+               y='Day of Week Question Was Posted',
+               fill='Proportion of All Questions\nPosted w/ Tag',
+               caption = "Max Woolf — minimaxir.com") +
+          theme(legend.position = 'top',
+                plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
+                axis.text.y = element_text(size = 5),
+                legend.text = element_text(size = 6),
+                legend.title = element_text(size = 6),
+                  legend.key.width = unit(1, unit='cm'),
+                legend.key.height = unit(0.25, unit='cm'),
+                legend.margin = margin(c(0, 0, -0.5, 0), unit='cm'))
+
+ggsave('monthly_count_hr_doy_f_answer.png', plot, width=6, height=8)
+```
+
+
+```{r}
+plot <- ggplot(df_top_tags_hr_doy_answer, aes(x=hour_posted, y=fct_rev(weekday_posted), fill=perc_a_answer)) +
+          geom_raster(stat="identity", interpolate=F) +
+          scale_x_discrete() +
+          scale_y_discrete() +
+          scale_fill_distiller(palette="PRGn", labels=percent, limits=c(0,1)) +
+          facet_wrap(~ tag, nrow=10, ncol=4) +
+          labs(title='New Stack Overflow Questions for the Top 40 Tags, by Time Posted',
+                subtitle='From January 2017 to November 2017',
+               x='Hour Question Was Posted (12 AM - 11 PM Eastern Time)',
+               y='Day of Week Question Was Posted',
+               fill='Proportion of All Questions\nPosted w/ Tag',
+               caption = "Max Woolf — minimaxir.com") +
+          theme(legend.position = 'top',
+                plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
+                axis.text.y = element_text(size = 5),
+                legend.text = element_text(size = 6),
+                legend.title = element_text(size = 6),
+                  legend.key.width = unit(1, unit='cm'),
+                legend.key.height = unit(0.25, unit='cm'),
+                legend.margin = margin(c(0, 0, -0.5, 0), unit='cm'))
+
+ggsave('monthly_count_hr_doy_a_answer.png', plot, width=6, height=8)
+```
 # LICENSE
 
 The MIT License (MIT)
