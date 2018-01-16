@@ -18,14 +18,18 @@ output:
 library(tidyverse)
 library(lubridate)
 library(tidytext)
+library(scales)
 
 sessionInfo()
+
+# https://brandcolors.net/b/stackoverflow
+stack_overflow_color <- "#f48024"
 ```
 
 ```{r}
 theme_set(theme_minimal(base_size=9, base_family="Source Sans Pro") +
             theme(plot.title = element_text(size=8, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0, unit='cm')),
-                  axis.title.x = element_blank(),
+                  axis.title.x = element_text(size=8),
                   axis.title.y = element_text(size=8),
                   plot.subtitle = element_text(family="Source Sans Pro Semibold", color="#969696", size=6),
                   plot.caption = element_text(size=6, color="#969696"),
@@ -36,12 +40,41 @@ theme_set(theme_minimal(base_size=9, base_family="Source Sans Pro") +
 
 
 ```{r}
-file_path <- "/Downloads/stack-overflow-2017.csv"
+file_path <- "~/Downloads/stack-overflow-2017.csv"
 
-df <- read_csv(file_path) %>% 
-        filter(creation_date <= ymd_hms('2017-12-01 00:00:00'))
+df <- read_csv(file_path)
 
 df %>% head()
+```
+
+Add columns relevant to the timing when the post was made. The raw data is in `UTC`, so it must be converted to Eastern.
+
+```{r}
+df <- df %>% mutate(
+        creation_date = with_tz(creation_date, "America/New_York"),
+        hour_posted = hour(creation_date),
+        weekday_posted = wday(creation_date, label=T, abbr=F),
+        week_posted = floor_date(creation_date, '1 week'),
+        month_posted = floor_date(creation_date, '1 month')
+)
+```
+
+# Overview
+
+For all questions asked:
+
+## Weekly
+
+```{r}
+plot <- ggplot(df, aes(x=week_posted, y=..count..)) +
+          geom_bar(fill = stack_overflow_color, alpha=0.75) +
+          scale_x_datetime(date_breaks='2 months', date_labels='%b') +
+          scale_y_continuous(labels=comma) +
+          labs(title='New Stack Overflow Questions in 2017',
+               x='Week Question was Posted',
+               y='# of Questions Posted')
+
+ggsave('weekly_count.png', plot, width=4, height=3)
 ```
 
 
