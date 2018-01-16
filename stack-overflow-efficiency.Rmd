@@ -1,0 +1,58 @@
+---
+title: "How to Make High Quality Data Visualizations for Websites With R and ggplot2"
+author: "Max Woolf (@minimaxir)"
+date: "2014-08-14"
+output:
+  html_notebook:
+    highlight: tango
+    mathjax: null
+    number_sections: yes
+    theme: spacelab
+    toc: yes
+---
+
+
+# Setup
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(tidytext)
+
+sessionInfo()
+```
+
+```{r}
+theme_set(theme_minimal(base_size=9, base_family="Source Sans Pro") +
+            theme(plot.title = element_text(size=8, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0, unit='cm')),
+                  axis.title.x = element_blank(),
+                  axis.title.y = element_text(size=8),
+                  plot.subtitle = element_text(family="Source Sans Pro Semibold", color="#969696", size=6),
+                  plot.caption = element_text(size=6, color="#969696"),
+                  #axis.text.x = element_text(size = 5),
+                  legend.text = element_text(size = 6),
+                  legend.key.width = unit(0.25, unit='cm')))
+```
+
+
+```{r}
+file_path <- "/Downloads/stack-overflow-2017.csv"
+
+df <- read_csv(file_path) %>% 
+        filter(creation_date <= ymd_hms('2017-12-01 00:00:00'))
+
+df %>% head()
+```
+
+
+# LICENSE
+
+The MIT License (MIT)
+
+Copyright (c) 2017 Max Woolf
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
