@@ -500,6 +500,77 @@ plot <- ggplot(df_acceptable_percs_subset, aes(x=tag, y = perc_is_answered, fill
 ggsave('acceptable_answer_bottom_30.png', plot, width=6, height=6)
 ```
 
+# Adjacency Matrix for Top Tags
+
+```{r}
+df_tag_adjacency <- df %>%
+                select(id, tags, time_to_a) %>%
+                unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
+                filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag))) %>%
+                inner_join(
+                    df %>%
+                  select(id, tags) %>%
+                  unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
+                  filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag))), by=c("id" = "id")) %>%
+                filter(tag.x != tag.y) %>%
+                mutate(is_answered = ifelse(!is.na(time_to_a), 1, 0)) %>%
+                group_by(tag.x, tag.y) %>%
+                summarize(count=n(),
+                          total_answered = sum(is_answered),
+                          perc_answered = total_answered/count) %>%
+                arrange(tag.x, desc(count))
+```
+
+```{r}
+plot <- ggplot(df_tag_adjacency %>% filter(count >= 1000), aes(x=tag.x, y = tag.y, fill=count)) +
+          geom_raster() +
+          scale_fill_viridis(option='inferno', trans='log10', breaks=10^(2:5), labels=comma) +
+          labs(title='Top Tags on Stack Overflow for Questions w/ Accepted Answers',
+                subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
+               x='Stack Overflow Question Tag',
+               y='% of Tagged Questions Which Have an Accepted Answer',
+               caption = "Max Woolf — minimaxir.com") +
+          theme(
+                axis.title.y=element_blank(),
+                axis.title.x=element_blank(),
+                axis.text.x = element_text(angle = 270, hjust = 0, vjust = 0.5),
+                legend.position = 'top',
+                plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
+                #axis.text.y = element_text(size = 5),
+                legend.text = element_text(size = 6),
+                legend.title = element_text(size = 6),
+                  legend.key.width = unit(1, unit='cm'),
+                legend.key.height = unit(0.25, unit='cm'),
+                legend.margin = margin(c(0, 0, -0.1, 0), unit='cm'))
+
+ggsave('so_tag_adjacency.png', plot, width=6, height=6)
+```
+
+```{r}
+plot <- ggplot(df_tag_adjacency %>% filter(count >= 1000), aes(x=tag.x, y = tag.y, fill=perc_answered)) +
+          geom_raster() +
+          scale_fill_viridis(option='inferno', limits=c(0,1), breaks=pretty_breaks(4), labels=percent) +
+          labs(title='Top Tags on Stack Overflow for Questions w/ Accepted Answers',
+                subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
+               x='Stack Overflow Question Tag',
+               y='% of Tagged Questions Which Have an Accepted Answer',
+               caption = "Max Woolf — minimaxir.com") +
+          theme(
+                axis.title.y=element_blank(),
+                axis.title.x=element_blank(),
+                axis.text.x = element_text(angle = 270, hjust=0, vjust = 0.5),
+                legend.position = 'top',
+                plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
+                #axis.text.y = element_text(size = 5),
+                legend.text = element_text(size = 6),
+                legend.title = element_text(size = 6),
+                  legend.key.width = unit(1, unit='cm'),
+                legend.key.height = unit(0.25, unit='cm'),
+                legend.margin = margin(c(0, 0, -0.1, 0), unit='cm'))
+
+ggsave('so_tag_adjacency_percent.png', plot, width=6, height=6)
+```
+
 # LICENSE
 
 The MIT License (MIT)
