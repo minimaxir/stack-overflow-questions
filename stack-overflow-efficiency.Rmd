@@ -1,14 +1,14 @@
 ---
 title: "How to Make High Quality Data Visualizations for Websites With R and ggplot2"
 author: "Max Woolf (@minimaxir)"
-date: "2014-08-14"
+date: "2017-02-06"
 output:
   html_notebook:
     highlight: tango
     mathjax: null
     number_sections: yes
     theme: spacelab
-    toc: yes
+
 ---
 
 
@@ -21,11 +21,14 @@ library(tidytext)
 library(scales)
 library(viridis)
 library(ggrepel)
+library(ggridges)
 
 sessionInfo()
 
 # https://brandcolors.net/b/stackoverflow
 stack_overflow_color <- "#f48024"
+
+# Sys.setenv(TZ="America/Los_Angeles")
 ```
 
 ```{r}
@@ -92,7 +95,6 @@ plot <- ggplot(df_deltas %>% filter(year >= ymd('2009-01-01'), year <= ymd('2016
 ggsave('so_overview.png', plot, width=4, height=3)
 ```
 
-# Main Analysis
 
 Data processed from this BigQuery:
 
@@ -186,7 +188,9 @@ Add a few bespoke features:
 df <- df %>% mutate(
   num_answers = ifelse(is.na(num_answers), 0, num_answers),
   f_answer_in = ifelse(!is.na(time_to_f) & time_to_f < 60*60*4, 1, 0),
-  a_answer_in = ifelse(!is.na(time_to_a) & time_to_a < 60*60*4, 1, 0)
+  a_answer_in = ifelse(!is.na(time_to_a) & time_to_a < 60*60*4, 1, 0),
+  num_tags = 1 + str_match_all(tags, '\\|') %>% lapply(length) %>% unlist(),
+  is_answered = ifelse(!is.na(time_to_a), 1, 0)
 )
 ```
 
@@ -211,6 +215,41 @@ ggsave('weekly_count.png', plot, width=4, height=3)
 
 # Facet by Tags
 
+
+## By # of Tags
+
+```{r}
+df_tag_counts <- df %>%
+  group_by(num_tags) %>%
+  summarize(count = n(),
+            perc_answered = sum(is_answered)/count) %>%
+  ungroup() %>%
+  mutate(perc_all = count/sum(count)) %>%
+  arrange(num_tags)
+
+df_tag_counts
+```
+
+```{r}
+plot <- ggplot(df_tag_counts, aes(x=factor(num_tags), y = perc_all, fill=perc_all)) +
+  geom_bar(stat='identity') +
+  geom_text(aes(label=percent(perc_all), color=perc_all), vjust=-0.25, family="Source Sans Pro Bold", size=3) +
+  scale_color_viridis(option='inferno', limits=c(0,1), guide=F) +
+  scale_fill_viridis(option='inferno', limits=c(0,1), guide=F) +
+  scale_y_continuous(labels=percent) +
+  labs(title='Breakdown of # of Tags in Stack Overflow Questions',
+       subtitle='For Questions Asked From January 2017 to November 2017',
+       x='# of Tags in Question',
+       y='% of Stack Overflow Questions',
+       caption = "Max Woolf — minimaxir.com") +
+  theme(legend.position = 'none',
+        plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')))
+
+ggsave('so_tag_breakdown.png', plot, width=4, height=3)
+```
+
+# Top Tags
+
 ```{r}
 df_top_tags <- df %>%
   select(creation_date, tags, score, num_answers) %>%
@@ -223,6 +262,30 @@ df_top_tags <- df %>%
   head(1000)
 
 df_top_tags %>% head()               
+```
+
+```{r}
+df_acceptable_percs_subset <- df_acceptable_percs %>%
+  head(30) %>%
+  mutate(tag = fct_rev(as_factor(tag)))
+
+plot <- ggplot(df_acceptable_percs_subset, aes(x=tag, y = perc_is_answered, fill=perc_is_answered)) +
+  geom_bar(stat='identity') +
+  geom_text(aes(label=percent(perc_is_answered), color=perc_is_answered), hjust=-0.25, family="Source Sans Pro Bold", size=3.5) +
+  coord_flip() +
+  scale_color_viridis(option='inferno', limits=c(0,1), guide=F) +
+  scale_fill_viridis(option='inferno', limits=c(0,1), guide=F) +
+  scale_y_continuous(labels=percent, limits=c(0,1)) +
+  labs(title='Top Tags on Stack Overflow for Questions w/ Accepted Answers',
+       subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
+       x='Stack Overflow Question Tag',
+       y='% of Tagged Questions Which Have an Accepted Answer',
+       caption = "Max Woolf — minimaxir.com") +
+  theme(legend.position = 'none',
+        plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
+        axis.title.y=element_blank())
+
+ggsave('acceptable_answer_top_30.png', plot, width=6, height=6)
 ```
 
 ```{r}
@@ -320,27 +383,37 @@ df_top_tags_hr_doy_answer %>% head()
 
 ```{r}
 df_top_tags_distribution <- df %>%
-  select(month_posted, tags, view_count, time_to_f, time_to_a) %>%
+  select(month_posted, tags, view_count, num_answers, time_to_f, time_to_a) %>%
   unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
   filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag)), month_posted >= date('2017-01-01'))
+
+df_tags_medians <- df_top_tags_distribution %>%
+  group_by(tag) %>%
+  summarize(med=median(view_count)) %>%
+  arrange(desc(med))
+
+df_top_tags_distribution <- df_top_tags_distribution %>%
+  mutate(tag = fct_rev(factor(tag, levels=(df_tags_medians %>% pull(tag)))))
 
 df_top_tags_distribution %>% head()
 ```
 
 ```{r}
-plot <- ggplot(df_top_tags_distribution, aes(x=month_posted, y=view_count, fill=tag, group=month_posted)) +
-          geom_boxplot() +
-          scale_x_datetime(date_breaks='3 months', date_labels='%b') +
-          scale_y_continuous(labels=comma) +
-          facet_wrap(~ tag, nrow=10, ncol=4, scales="free_y") +
+plot <- ggplot(df_top_tags_distribution, aes(x=view_count, y=tag, fill=tag)) +
+          #geom_boxplot() +
+          geom_density_ridges(scale = 5, size = 0.25, rel_min_height = 0.03) +
+          scale_y_discrete() +
+          scale_x_log10(labels=comma, limits=c(10,10^4), breaks=10^(1:4), minor_breaks=NULL) +
           labs(title='New Stack Overflow Questions for the Top 40 Tags',
                 subtitle='From January 2017 to November 2017',
-               x='Month Question Was Posted',
-               y='# of Questions Posted With Tag') +
+               x='# of Views on Post',
+               y='# of Views on Post',
+               caption = "Max Woolf — minimaxir.com") +
           theme(legend.position = 'none',
-                plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')))
+                plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
+                axis.title.y = element_blank())
 
-ggsave('monthly_views_boxplot_tag.png', plot, width=6, height=8)
+ggsave('views_boxplot_tag.png', plot, width=6, height=8)
 ```
 
 ## Tag Wordcloud
@@ -376,10 +449,11 @@ plot <- ggplot(df_top_tags_words, aes(x = 1, y = 1, size = max_norm, label = wor
   scale_y_continuous(breaks = NULL) +
   scale_x_continuous(breaks = NULL) +
   facet_wrap(~ tag, nrow=10, ncol=4) +
-  labs(title='New Stack Overflow Questions for the Top 40 Tags',
-       subtitle='From January 2017 to November 2017, Sorted by Lowest Median Time to Accepted Answer',
+  labs(title='Wordcloud of Words in Titles of Stack Overflow Questions for the Top 20 Tags',
+       subtitle='From January 2017 to November 2017',
        x='Month Question Was Posted',
-       y='# of Questions Posted With Tag') +
+       y='# of Questions Posted With Tag',
+       caption = "Max Woolf — minimaxir.com") +
   theme(legend.position = 'none',
         plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
         axis.text.x = element_blank(),
@@ -411,10 +485,11 @@ plot <- ggplot(df_top_tags_distribution %>% filter(!is.na(time_to_a)) %>% mutate
   #scale_x_log10(limits = c(1,10^3*60*60), labels=c(0, 10^(0:3)), breaks=c(0, 10^(0:3)*60*60)) +
   scale_y_continuous(labels=comma) +
   facet_wrap(~ tag, nrow=10, ncol=4, scales="free_y") +
-  labs(title='New Stack Overflow Questions for the Top 40 Tags',
+  labs(title='Distribution of Time-To-Answer Stack Overflow Questions for the Top 40 Tags',
        subtitle='From January 2017 to November 2017, Sorted by Lowest Median Time to Accepted Answer',
-       x='Month Question Was Posted',
-       y='# of Questions Posted With Tag') +
+       x='Time From Original Question Was Posted to when Accepted Answer was Posted',
+       y='# of Questions Posted With Tag',
+       caption = "Max Woolf — minimaxir.com") +
   theme(legend.position = 'none',
         plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')))
 
