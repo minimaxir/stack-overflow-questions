@@ -17,18 +17,17 @@ output:
 ```{r}
 library(tidyverse)
 library(lubridate)
-library(tidytext)
+library(tidytext)   # created at Stack Overflow by Julia Singe and David Robinson
 library(scales)
 library(viridis)
 library(ggrepel)
 library(ggridges)
 
 sessionInfo()
+Sys.setenv(TZ="America/Los_Angeles")
 
 # https://brandcolors.net/b/stackoverflow
 stack_overflow_color <- "#f48024"
-
-# Sys.setenv(TZ="America/Los_Angeles")
 ```
 
 ```{r}
@@ -84,15 +83,17 @@ df_deltas %>% head()
 
 ```{r}
 plot <- ggplot(df_deltas %>% filter(year >= ymd('2009-01-01'), year <= ymd('2016-01-01')), aes(x=year, y=perc)) +
-          geom_bar(alpha=0.75, stat="identity", fill=stack_overflow_color) +
+          geom_bar(alpha=0.9, stat="identity", fill=stack_overflow_color) +
           scale_x_date(date_breaks='1 year', date_labels='%Y') +
           scale_y_continuous(labels=percent) +
           labs(title='Proportion of 2017 Views on Older Stack Overflow Questions by Year',
                 subtitle='From March 13th, 2017 to December 3rd, 2017. Visualization Excludes Partial Years',
                x='Year Question Was Posted',
-               y='% of All Views')
+               y='% of All Views',
+               caption = "Max Woolf — minimaxir.com"
+              )
 
-ggsave('so_overview.png', plot, width=4, height=3)
+ggsave('so_overview.png', plot, width=4, height=2)
 ```
 
 
@@ -203,14 +204,15 @@ For all questions asked:
 
 ```{r}
 plot <- ggplot(df, aes(x=week_posted, y=..count..)) +
-  geom_bar(fill = stack_overflow_color, alpha=0.75) +
+  geom_bar(fill = stack_overflow_color, alpha=0.9) +
   scale_x_datetime(date_breaks='2 months', date_labels='%b') +
   scale_y_continuous(labels=comma) +
   labs(title='New Stack Overflow Questions in 2017',
        x='Week Question was Posted',
-       y='# of Questions Posted')
+       y='# of Questions Posted',
+       caption = "Max Woolf — minimaxir.com")
 
-ggsave('weekly_count.png', plot, width=4, height=3)
+ggsave('weekly_count.png', plot, width=4, height=2)
 ```
 
 # Facet by Tags
@@ -245,47 +247,24 @@ plot <- ggplot(df_tag_counts, aes(x=factor(num_tags), y = perc_all, fill=perc_al
   theme(legend.position = 'none',
         plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')))
 
-ggsave('so_tag_breakdown.png', plot, width=4, height=3)
+ggsave('so_tag_breakdown.png', plot, width=4, height=2)
 ```
 
 # Top Tags
 
 ```{r}
 df_top_tags <- df %>%
-  select(creation_date, tags, score, num_answers) %>%
+  select(creation_date, tags, score, num_answers, is_answered) %>%
   unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
   group_by(tag) %>%
   summarize(count = n(),
             med_score = median(score),
-            med_answers = median(num_answers)) %>%
+            med_answers = median(num_answers),
+            perc_is_answered = sum(is_answered)/count) %>%
   arrange(desc(count)) %>%
   head(1000)
 
 df_top_tags %>% head()               
-```
-
-```{r}
-df_acceptable_percs_subset <- df_acceptable_percs %>%
-  head(30) %>%
-  mutate(tag = fct_rev(as_factor(tag)))
-
-plot <- ggplot(df_acceptable_percs_subset, aes(x=tag, y = perc_is_answered, fill=perc_is_answered)) +
-  geom_bar(stat='identity') +
-  geom_text(aes(label=percent(perc_is_answered), color=perc_is_answered), hjust=-0.25, family="Source Sans Pro Bold", size=3.5) +
-  coord_flip() +
-  scale_color_viridis(option='inferno', limits=c(0,1), guide=F) +
-  scale_fill_viridis(option='inferno', limits=c(0,1), guide=F) +
-  scale_y_continuous(labels=percent, limits=c(0,1)) +
-  labs(title='Top Tags on Stack Overflow for Questions w/ Accepted Answers',
-       subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
-       x='Stack Overflow Question Tag',
-       y='% of Tagged Questions Which Have an Accepted Answer',
-       caption = "Max Woolf — minimaxir.com") +
-  theme(legend.position = 'none',
-        plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
-        axis.title.y=element_blank())
-
-ggsave('acceptable_answer_top_30.png', plot, width=6, height=6)
 ```
 
 ```{r}
@@ -305,7 +284,7 @@ df_top_tags_month %>% head()
 
 ```{r}
 plot <- ggplot(df_top_tags_month, aes(x=month_posted, y=count, fill=tag)) +
-  geom_bar(alpha=0.75, stat="identity") +
+  geom_bar(alpha=0.9, stat="identity") +
   geom_smooth(se=F, method="lm", color="black", size=0.5) +
   scale_x_datetime(date_breaks='3 months', date_labels='%b') +
   scale_y_continuous(labels=comma) +
@@ -313,7 +292,9 @@ plot <- ggplot(df_top_tags_month, aes(x=month_posted, y=count, fill=tag)) +
   labs(title='New Stack Overflow Questions for the Top 40 Tags',
        subtitle='From January 2017 to November 2017',
        x='Month Question Was Posted',
-       y='# of Questions Posted With Tag') +
+       y='# of Questions Posted With Tag',
+       caption = "Max Woolf — minimaxir.com"
+       ) +
   theme(legend.position = 'none',
         plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')))
 
@@ -363,20 +344,6 @@ plot <- ggplot(df_top_tags_hr_doy, aes(x=hour_posted, y=fct_rev(weekday_posted),
         legend.margin = margin(c(0, 0, -0.5, 0), unit='cm'))
 
 ggsave('monthly_count_hr_doy.png', plot, width=6, height=8)
-```
-
-## Day/Week To Receive Answer
-
-```{r}
-df_top_tags_hr_doy_answer <- df %>%
-  select(hour_posted, weekday_posted, tags, f_answer_in, a_answer_in) %>%
-  unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
-  filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag))) %>%
-  group_by(hour_posted, weekday_posted, tag) %>%
-  summarize(count=n(), perc_f_answer = sum(f_answer_in)/count, perc_a_answer = sum(a_answer_in)/count) %>%
-  ungroup()
-
-df_top_tags_hr_doy_answer %>% head() 
 ```
 
 ## Tag Distributions
@@ -497,18 +464,19 @@ ggsave('acceptable_answer_density.png', plot, width=6, height=8)
 ```
 
 
-## Barchart of Acceptable Language Percents
-
 ```{r}
 df_top_tags_distribution <- df %>%
-  select(month_posted, tags, view_count, time_to_f, time_to_a) %>%
+  select(tags, view_count, time_to_f, time_to_a, is_answered) %>%
   unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
-  filter(tag %in% (df_top_tags %>% pull(tag)), month_posted >= date('2017-01-01')) %>%
-  mutate(is_answered = ifelse(!is.na(time_to_a), 1, 0))
+  filter(tag %in% (df_top_tags %>% pull(tag)))
 
 df_top_tags_distribution %>% head()
 ```
 
+
+### Best/Worst Languages
+
+This doesn't necessairly imply one tool is "better" than another, the difference may be due to question difficulty and the number of people skilled in the technology.
 
 ```{r}
 df_acceptable_percs <- df_top_tags_distribution %>%
@@ -522,10 +490,6 @@ df_acceptable_percs <- df_top_tags_distribution %>%
 
 df_acceptable_percs %>% head()
 ```
-
-### Best/Worst Languages
-
-This doesn't necessairly imply one tool is "better" than another, the difference may be due to question difficulty and the number of people skilled in the technology.
 
 ```{r}
 df_acceptable_percs_subset <- df_acceptable_percs %>%
@@ -564,8 +528,7 @@ plot <- ggplot(df_acceptable_percs_subset, aes(x=tag, y = perc_is_answered, fill
   scale_fill_viridis(option='inferno', limits=c(0,1), guide=F) +
   scale_y_continuous(labels=percent, limits=c(0,1)) +
   labs(title='Bottom Tags on Stack Overflow for Questions w/ Accepted Answers',
-       subtitle='For Questions Asked from Janu
-ary 2017 to November 2017, out of Top 1,000 Tags',
+       subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
 x='Stack Overflow Question Tag',
 y='% of Tagged Questions Which Have an Accepted Answer',
 caption = "Max Woolf — minimaxir.com") +
@@ -580,7 +543,7 @@ ggsave('acceptable_answer_bottom_30.png', plot, width=6, height=6)
 
 ```{r}
 df_tag_adjacency <- df %>%
-  select(id, tags, time_to_a) %>%
+  select(id, tags, time_to_a, is_answered) %>%
   unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
   filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag))) %>%
   inner_join(
@@ -589,7 +552,6 @@ df_tag_adjacency <- df %>%
       unnest_tokens(tag, tags, token=stringr::str_split, pattern=fixed("|")) %>%
       filter(tag %in% (df_top_tags %>% head(40) %>% pull(tag))), by=c("id" = "id")) %>%
   filter(tag.x != tag.y) %>%
-  mutate(is_answered = ifelse(!is.na(time_to_a), 1, 0)) %>%
   group_by(tag.x, tag.y) %>%
   summarize(count=n(),
             total_answered = sum(is_answered),
@@ -600,11 +562,11 @@ df_tag_adjacency <- df %>%
 ```{r}
 plot <- ggplot(df_tag_adjacency %>% filter(count >= 1000), aes(x=tag.x, y = tag.y, fill=count)) +
   geom_raster() +
-  scale_fill_viridis(option='inferno', trans='log10', breaks=10^(2:5), labels=comma) +
-  labs(title='Top Tags on Stack Overflow for Questions w/ Accepted Answers',
-       subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
+  scale_fill_viridis(option='inferno', trans='log10', breaks=10^(1:5), labels=comma) +
+  labs(title='Question Counts for Stack Overflow Tag Pairs',
+       subtitle='For Questions Asked From January 2017 to November 2017 (min 1,000 questions per pair)',
        x='Stack Overflow Question Tag',
-       y='% of Tagged Questions Which Have an Accepted Answer',
+       fill='# of Questions',
        caption = "Max Woolf — minimaxir.com") +
   theme(
     axis.title.y=element_blank(),
@@ -626,10 +588,10 @@ ggsave('so_tag_adjacency.png', plot, width=6, height=6)
 plot <- ggplot(df_tag_adjacency %>% filter(count >= 1000), aes(x=tag.x, y = tag.y, fill=perc_answered)) +
   geom_raster() +
   scale_fill_viridis(option='inferno', limits=c(0,1), breaks=pretty_breaks(4), labels=percent) +
-  labs(title='Top Tags on Stack Overflow for Questions w/ Accepted Answers',
-       subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
+  labs(title='Question Answer Rate for Stack Overflow Tag Pairs',
+       subtitle='For Questions Asked From January 2017 to November 2017 (min 1,000 questions per pair)',
        x='Stack Overflow Question Tag',
-       y='% of Tagged Questions Which Have an Accepted Answer',
+       fill='% of Tagged Questions\nWhich Have an Accepted Answer',
        caption = "Max Woolf — minimaxir.com") +
   theme(
     axis.title.y=element_blank(),
