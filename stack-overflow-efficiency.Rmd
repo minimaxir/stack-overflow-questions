@@ -1,5 +1,5 @@
 ---
-title: "How to Make High Quality Data Visualizations for Websites With R and ggplot2"
+title: "A Visual Look at Stack Overflow's Question Tags"
 author: "Max Woolf (@minimaxir)"
 date: "2017-02-06"
 output:
@@ -11,6 +11,9 @@ output:
 
 ---
 
+This R Notebook is the complement to my blog post [A Visual Look at Stack Overflow's Question Tags](http://minimaxir.com/2018/02/stack-overflow-questions/).
+
+This notebook is licensed under the MIT License. If you use the code or data visualization designs contained within this notebook, it would be greatly appreciated if proper attribution is given back to this notebook and/or myself. Thanks! :)
 
 # Setup
 
@@ -37,7 +40,6 @@ theme_set(theme_minimal(base_size=9, base_family="Source Sans Pro") +
                   axis.title.y = element_text(size=8),
                   plot.subtitle = element_text(family="Source Sans Pro Semibold", color="#969696", size=6),
                   plot.caption = element_text(size=6, color="#969696"),
-                  #axis.text.x = element_text(size = 5),
                   legend.text = element_text(size = 6),
                   legend.key.width = unit(0.25, unit='cm')))
 ```
@@ -73,6 +75,7 @@ ORDER BY
 
 ```
 
+Load in the precomputed data.
 
 ```{r}
 file_path <- "stack_overflow_delta.csv"
@@ -80,11 +83,12 @@ df_deltas <- read_csv(file_path) %>% mutate(perc = total_delta / sum(as.numeric(
 df_deltas %>% head()
 ```
 
+Overview of 2017 view counts on older posts.
 
 ```{r}
 plot <- ggplot(df_deltas %>% filter(year >= ymd('2009-01-01'), year <= ymd('2016-01-01')), aes(x=year, y=perc)) +
           geom_bar(alpha=0.9, stat="identity", fill=stack_overflow_color) +
-          scale_x_date(date_breaks='1 year', date_labels='%Y') +
+          scale_x_date(date_breaks='1 year', date_labels='%Y', minor_breaks = NULL) +
           scale_y_continuous(labels=percent) +
           labs(title='Proportion of 2017 Views on Older Stack Overflow Questions by Year',
                 subtitle='From March 13th, 2017 to December 3rd, 2017. Visualization Excludes Partial Years',
@@ -97,7 +101,7 @@ ggsave('so_overview.png', plot, width=4, height=2)
 ```
 
 
-Data processed from this BigQuery:
+Data processed from this BigQuery: (NB: to download large datasets, save as a BigQuery table and export as a CSV, then download the CSV)
 
 ```{sql eval=FALSE, include=FALSE}
 #standardSQL
@@ -235,7 +239,7 @@ df_tag_counts
 ```{r}
 plot <- ggplot(df_tag_counts, aes(x=factor(num_tags), y = perc_all, fill=perc_all)) +
   geom_bar(stat='identity') +
-  geom_text(aes(label=percent(perc_all), color=perc_all), vjust=-0.25, family="Source Sans Pro Bold", size=3) +
+  geom_text(aes(label=percent(perc_all), color=perc_all), vjust=-0.25, family="Source Sans Pro Bold", size=2.5) +
   scale_color_viridis(option='inferno', limits=c(0,1), guide=F) +
   scale_fill_viridis(option='inferno', limits=c(0,1), guide=F) +
   scale_y_continuous(labels=percent) +
@@ -247,7 +251,7 @@ plot <- ggplot(df_tag_counts, aes(x=factor(num_tags), y = perc_all, fill=perc_al
   theme(legend.position = 'none',
         plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')))
 
-ggsave('so_tag_breakdown.png', plot, width=4, height=2)
+ggsave('so_tag_breakdown.png', plot, width=4, height=2.5)
 ```
 
 # Top Tags
@@ -404,7 +408,7 @@ df_top_tags_words <- df %>%
 df_top_tags_words %>% head(50) 
 ```
 
-Wordcloud trick in ggplot2 adapted from [Mhairi Mcneill's blog post](http://mhairihmcneill.com/blog/2016/04/05/wordclouds-in-ggplot.html).
+Wordcloud trick in ggplot2 adapted from [Mhairi McNeill's blog post](http://mhairihmcneill.com/blog/2016/04/05/wordclouds-in-ggplot.html).
 
 ```{r}
 set.seed(123)   # For geom_text_repel
@@ -437,15 +441,42 @@ ggsave('so_tag_wordcloud.png', plot, width=6, height=8)
 ```{r}
 df_tag_median <- df_top_tags_distribution %>%
   group_by(tag) %>%
-  summarize(med = median(time_to_a, na.rm=T)) %>%
-  arrange(med)
+  summarize(count=n(),
+    med = median(time_to_a, na.rm=T)) %>%
+  arrange(med) %>%
+  mutate(tag = fct_rev(factor(tag, levels=tag)))
 
-df_tag_median
+df_tag_median %>% head(40)
 ```
 
+```{r}
+plot <- ggplot(df_tag_median %>% head(30), aes(x=tag, y = med, fill=1/med)) +
+  geom_bar(stat='identity') +
+  geom_text(aes(label=sprintf("%0.1f",(med/60)), color=1/med), hjust=-0.25, family="Source Sans Pro Bold", size=3.5) +
+  coord_flip() +
+  scale_color_viridis(option='inferno', limits=c(0,1), guide=F) +
+  scale_fill_viridis(option='inferno', limits=c(0,1), guide=F) +
+  scale_y_continuous(limits = c(0,20*60), labels=seq(0,20,5), breaks=seq(0,20*60, 5*60)) +
+  labs(title='Top Tags on Stack Overflow with Lowest Median Time-To-Answer',
+       subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
+x='Stack Overflow Question Tag',
+y='Median Time (Minutes) Until Accepted Answer is Posted For Questions in Tag',
+caption = "Max Woolf — minimaxir.com") +
+  theme(legend.position = 'none',
+        plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
+        axis.title.y=element_blank())
+
+ggsave('lowest_median_time.png', plot, width=6, height=6)
+```
 
 ```{r}
-plot <- ggplot(df_top_tags_distribution %>% filter(!is.na(time_to_a)) %>% mutate(tag = fct_relevel(factor(tag), (df_tag_median %>% pull(tag)))), aes(x=time_to_a, fill=tag)) +
+df_tag_median <- df_tag_median %>%
+  arrange(desc(count)) %>%
+  head(40) %>%
+  arrange(med) %>%
+  mutate(tag = fct_rev(factor(tag, levels=tag)))
+
+plot <- ggplot(df_top_tags_distribution %>% filter(!is.na(time_to_a), tag %in% (df_tag_median %>%  na.omit() %>% pull(tag))) %>% mutate(tag = factor(tag, levels=(df_tag_median %>%  na.omit() %>% pull(tag)))), aes(x=time_to_a, fill=tag)) +
   geom_histogram() +
   geom_vline(data=df_tag_median %>% mutate(tag = fct_relevel(factor(tag), (df_tag_median %>% pull(tag)))), aes(xintercept=med), linetype="dashed") +
   scale_x_continuous(limits = c(0,4*60*60), labels=0:4, breaks=seq(0,4*60*60, 60*60)) +
@@ -454,7 +485,7 @@ plot <- ggplot(df_top_tags_distribution %>% filter(!is.na(time_to_a)) %>% mutate
   facet_wrap(~ tag, nrow=10, ncol=4, scales="free_y") +
   labs(title='Distribution of Time-To-Answer Stack Overflow Questions for the Top 40 Tags',
        subtitle='From January 2017 to November 2017, Sorted by Lowest Median Time to Accepted Answer',
-       x='Time From Original Question Was Posted to when Accepted Answer was Posted',
+       x='Median Time (Hours) Until Accepted Answer is Posted For Questions in Tag',
        y='# of Questions Posted With Tag',
        caption = "Max Woolf — minimaxir.com") +
   theme(legend.position = 'none',
@@ -587,6 +618,7 @@ ggsave('so_tag_adjacency.png', plot, width=6, height=6)
 ```{r}
 plot <- ggplot(df_tag_adjacency %>% filter(count >= 1000), aes(x=tag.x, y = tag.y, fill=perc_answered)) +
   geom_raster() +
+  geom_text(aes(label=sprintf("%0.0f", perc_answered*100)), family="Roboto Condensed Bold", size=2, color="white") +
   scale_fill_viridis(option='inferno', limits=c(0,1), breaks=pretty_breaks(4), labels=percent) +
   labs(title='Question Answer Rate for Stack Overflow Tag Pairs',
        subtitle='For Questions Asked From January 2017 to November 2017 (min 1,000 questions per pair)',
