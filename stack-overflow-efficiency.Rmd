@@ -1,17 +1,16 @@
 ---
 title: "A Visual Look at Stack Overflow's Question Tags"
 author: "Max Woolf (@minimaxir)"
-date: "2017-02-06"
+date: "2017-02-09"
 output:
   html_notebook:
     highlight: tango
     mathjax: null
     number_sections: yes
     theme: spacelab
-
 ---
 
-This R Notebook is the complement to my blog post [A Visual Look at Stack Overflow's Question Tags](http://minimaxir.com/2018/02/stack-overflow-questions/).
+This R Notebook is the complement to my blog post [A Visual Overview of Stack Overflow's Question Tags](http://minimaxir.com/2018/02/stack-overflow-questions/).
 
 This notebook is licensed under the MIT License. If you use the code or data visualization designs contained within this notebook, it would be greatly appreciated if proper attribution is given back to this notebook and/or myself. Thanks! :)
 
@@ -20,7 +19,7 @@ This notebook is licensed under the MIT License. If you use the code or data vis
 ```{r}
 library(tidyverse)
 library(lubridate)
-library(tidytext)   # created at Stack Overflow by Julia Singe and David Robinson
+library(tidytext)   # created at Stack Overflow by Julia Silge and David Robinson
 library(scales)
 library(viridis)
 library(ggrepel)
@@ -48,7 +47,7 @@ theme_set(theme_minimal(base_size=9, base_family="Source Sans Pro") +
 
 Use data precomputed from this BigQuery:
 
-```{sql eval=FALSE, include=FALSE}
+```{sql eval=FALSE, include=TRUE}
 #standardSQL
 SELECT
   DATE_TRUNC(DATE(creation_date), YEAR) AS year,
@@ -80,7 +79,7 @@ Load in the precomputed data.
 ```{r}
 file_path <- "stack_overflow_delta.csv"
 df_deltas <- read_csv(file_path) %>% mutate(perc = total_delta / sum(as.numeric(total_delta)))
-df_deltas %>% head()
+df_deltas
 ```
 
 Overview of 2017 view counts on older posts.
@@ -100,10 +99,11 @@ plot <- ggplot(df_deltas %>% filter(year >= ymd('2009-01-01'), year <= ymd('2016
 ggsave('so_overview.png', plot, width=4, height=2)
 ```
 
+![](so_overview.png)
 
 Data processed from this BigQuery: (NB: to download large datasets, save as a BigQuery table and export as a CSV, then download the CSV)
 
-```{sql eval=FALSE, include=FALSE}
+```{sql eval=FALSE, include=TRUE}
 #standardSQL
 WITH
   answers_ordered AS (
@@ -117,6 +117,7 @@ WITH
     COUNT(*) OVER (PARTITION BY parent_id) AS num_answers
   FROM
     `fh-bigquery.stackoverflow_archive.201712_posts_answers` )
+    
 SELECT
   id,
   title,
@@ -171,7 +172,7 @@ WHERE
 
 ```{r}
 file_path <- "~/Downloads/stack_overflow_2017.csv"
-df <- read_csv(file_path)
+df <- read_csv(file_path, progress=FALSE)
 df %>% head()
 ```
 
@@ -219,8 +220,9 @@ plot <- ggplot(df, aes(x=week_posted, y=..count..)) +
 ggsave('weekly_count.png', plot, width=4, height=2)
 ```
 
-# Facet by Tags
+![](weekly_count.png)
 
+# Facet by Tags
 
 ## By # of Tags
 
@@ -253,6 +255,8 @@ plot <- ggplot(df_tag_counts, aes(x=factor(num_tags), y = perc_all, fill=perc_al
 
 ggsave('so_tag_breakdown.png', plot, width=4, height=2.5)
 ```
+
+![](so_tag_breakdown.png)
 
 # Top Tags
 
@@ -305,6 +309,7 @@ plot <- ggplot(df_top_tags_month, aes(x=month_posted, y=count, fill=tag)) +
 ggsave('monthly_count_tag.png', plot, width=6, height=8)
 ```
 
+![](monthly_count_tag.png)
 ## Day/Hour of Week tags were posted
 
 Related: https://stackoverflow.blog/2017/04/19/programming-languages-used-late-night/
@@ -350,6 +355,8 @@ plot <- ggplot(df_top_tags_hr_doy, aes(x=hour_posted, y=fct_rev(weekday_posted),
 ggsave('monthly_count_hr_doy.png', plot, width=6, height=8)
 ```
 
+![](monthly_count_hr_doy.png)
+
 ## Tag Distributions
 
 ```{r}
@@ -384,8 +391,10 @@ plot <- ggplot(df_top_tags_distribution, aes(x=view_count, y=tag, fill=tag)) +
                 plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
                 axis.title.y = element_blank())
 
-ggsave('views_boxplot_tag.png', plot, width=6, height=8)
+ggsave('views_tag_dist.png', plot, width=6, height=8)
 ```
+
+![](views_tag_dist.png)
 
 ## Tag Wordcloud
 
@@ -436,6 +445,8 @@ plot <- ggplot(df_top_tags_words, aes(x = 1, y = 1, size = max_norm, label = wor
 ggsave('so_tag_wordcloud.png', plot, width=6, height=8)
 ```
 
+![](so_tag_wordcloud.png)
+
 ## Distribution of Times to an acceptable answer
 
 ```{r}
@@ -450,26 +461,6 @@ df_tag_median %>% head(40)
 ```
 
 ```{r}
-plot <- ggplot(df_tag_median %>% head(30), aes(x=tag, y = med, fill=1/med)) +
-  geom_bar(stat='identity') +
-  geom_text(aes(label=sprintf("%0.1f",(med/60)), color=1/med), hjust=-0.25, family="Source Sans Pro Bold", size=3.5) +
-  coord_flip() +
-  scale_color_viridis(option='inferno', limits=c(0,1), guide=F) +
-  scale_fill_viridis(option='inferno', limits=c(0,1), guide=F) +
-  scale_y_continuous(limits = c(0,20*60), labels=seq(0,20,5), breaks=seq(0,20*60, 5*60)) +
-  labs(title='Top Tags on Stack Overflow with Lowest Median Time-To-Answer',
-       subtitle='For Questions Asked From January 2017 to November 2017, out of Top 1,000 Tags',
-x='Stack Overflow Question Tag',
-y='Median Time (Minutes) Until Accepted Answer is Posted For Questions in Tag',
-caption = "Max Woolf — minimaxir.com") +
-  theme(legend.position = 'none',
-        plot.title = element_text(size=10, family="Source Sans Pro Bold", margin=margin(t = -0.1, b = 0.0, unit='cm')),
-        axis.title.y=element_blank())
-
-ggsave('lowest_median_time.png', plot, width=6, height=6)
-```
-
-```{r}
 df_tag_median <- df_tag_median %>%
   arrange(desc(count)) %>%
   head(40) %>%
@@ -478,7 +469,7 @@ df_tag_median <- df_tag_median %>%
 
 plot <- ggplot(df_top_tags_distribution %>% filter(!is.na(time_to_a), tag %in% (df_tag_median %>%  na.omit() %>% pull(tag))) %>% mutate(tag = factor(tag, levels=(df_tag_median %>%  na.omit() %>% pull(tag)))), aes(x=time_to_a, fill=tag)) +
   geom_histogram() +
-  geom_vline(data=df_tag_median %>% mutate(tag = fct_relevel(factor(tag), (df_tag_median %>% pull(tag)))), aes(xintercept=med), linetype="dashed") +
+  geom_vline(data=df_tag_median %>% mutate(tag = fct_relevel(factor(tag), (df_tag_median %>%  na.omit() %>% pull(tag)))), aes(xintercept=med), linetype="dashed") +
   scale_x_continuous(limits = c(0,4*60*60), labels=0:4, breaks=seq(0,4*60*60, 60*60)) +
   #scale_x_log10(limits = c(1,10^3*60*60), labels=c(0, 10^(0:3)), breaks=c(0, 10^(0:3)*60*60)) +
   scale_y_continuous(labels=comma) +
@@ -494,6 +485,7 @@ plot <- ggplot(df_top_tags_distribution %>% filter(!is.na(time_to_a), tag %in% (
 ggsave('acceptable_answer_density.png', plot, width=6, height=8)
 ```
 
+![](acceptable_answer_density.png)
 
 ```{r}
 df_top_tags_distribution <- df %>%
@@ -546,6 +538,8 @@ plot <- ggplot(df_acceptable_percs_subset, aes(x=tag, y = perc_is_answered, fill
 ggsave('acceptable_answer_top_30.png', plot, width=6, height=6)
 ```
 
+![](acceptable_answer_top_30.png)
+
 ```{r}
 df_acceptable_percs_subset <- df_acceptable_percs %>%
   tail(30) %>%
@@ -569,6 +563,8 @@ caption = "Max Woolf — minimaxir.com") +
 
 ggsave('acceptable_answer_bottom_30.png', plot, width=6, height=6)
 ```
+
+![](acceptable_answer_bottom_30.png)
 
 # Adjacency Matrix for Top Tags
 
@@ -615,6 +611,8 @@ plot <- ggplot(df_tag_adjacency %>% filter(count >= 1000), aes(x=tag.x, y = tag.
 ggsave('so_tag_adjacency.png', plot, width=6, height=6)
 ```
 
+![](so_tag_adjacency.png)
+
 ```{r}
 plot <- ggplot(df_tag_adjacency %>% filter(count >= 1000), aes(x=tag.x, y = tag.y, fill=perc_answered)) +
   geom_raster() +
@@ -641,11 +639,13 @@ plot <- ggplot(df_tag_adjacency %>% filter(count >= 1000), aes(x=tag.x, y = tag.
 ggsave('so_tag_adjacency_percent.png', plot, width=6, height=6)
 ```
 
+![](so_tag_adjacency_percent.png)
+
 # LICENSE
 
 The MIT License (MIT)
 
-Copyright (c) 2017 Max Woolf
+Copyright (c) 2018 Max Woolf
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
